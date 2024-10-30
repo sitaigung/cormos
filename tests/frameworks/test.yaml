@@ -1,0 +1,14 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: simple-print-
+spec:
+  entrypoint: print-task
+  templates:
+    - name: print-task
+      container:
+        image: arm64v8/busybox  # Use the ARM-compatible busybox image
+        command: ["echo", "Hello from Raspberry Pi!"]
+      nodeSelector:
+        role: raspberrypi  # This ensures it runs on your Raspberry Pi node
+

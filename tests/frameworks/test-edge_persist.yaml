@@ -1,0 +1,53 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: simple-csv-workflow-
+  namespace: argo
+spec:
+  entrypoint: csv-workflow
+  templates:
+    - name: csv-workflow
+      steps:
+        - - name: create-csv
+            template: create-csv
+        - - name: read-csv
+            template: read-csv
+
+    - name: create-csv
+      nodeSelector:
+        kubernetes.io/hostname: pserver-aurora-r4
+      container:
+        image: python:3.8-slim
+        command: ["python", "-c"]
+        args:
+          - |
+            import csv
+            words = ["apple", "banana", "cherry", "date", "elderberry",
+                     "fig", "grape", "honeydew", "kiwi", "lemon"]
+            with open("/mnt/data/words.csv", mode='w', newline='') as file:
+                writer = csv.writer(file)
+                for word in words:
+                    writer.writerow([word])
+        volumeMounts:
+          - name: shared-pvc
+            mountPath: /mnt/data
+      volumes:
+        - name: shared-pvc
+          persistentVolumeClaim:
+            claimName: edge-data  # Use the provided PVC for shared storage
+
+    - name: read-csv
+      nodeSelector:
+        kubernetes.io/hostname: raspberrypi1
+      container:
+        image: python:3.8-slim
+        command: ["cat"]
+        args: ["/mnt/data/words.csv"]
+        volumeMounts:
+          - name: shared-pvc
+            mountPath: /mnt/data
+      volumes:
+        - name: shared-pvc
+          persistentVolumeClaim:
+            claimName: edge-data  # Use the provided PVC for shared storage
+

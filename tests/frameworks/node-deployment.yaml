@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: node-app
+  template:
+    metadata:
+      labels:
+        app: node-app
+    spec:
+      containers:
+      - name: node-container
+        image: node:14
+        ports:
+        - containerPort: 3000
+        volumeMounts:
+        - mountPath: "/usr/src/app"
+          name: app-storage
+      volumes:
+      - name: app-storage
+        persistentVolumeClaim:
+          claimName: node-pvc

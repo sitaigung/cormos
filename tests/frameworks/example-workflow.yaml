@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: example-workflow- 
+  namespace: argo
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: step1
+            template: task1
+        - - name: step2
+            template: task2
+    - name: task1
+      container:
+        image: alpine:latest
+        command: ["sh", "-c", "echo 'Hello from Task 1'"] 
+    - name: task2
+      container:
+        image: alpine:latest
+        command: ["sh", "-c", "echo 'Hello from Task 2'"] 

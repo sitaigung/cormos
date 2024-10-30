@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: desktop-app
+  labels:
+    app: desktop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: desktop
+  template:
+    metadata:
+      labels:
+        app: desktop
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/master: "true"
+      containers:
+      - name: vnc-desktop
+        image: dorowu/ubuntu-desktop-lxde-vnc  # A simple VNC desktop image
+        ports:
+        - containerPort: 5900  # Default VNC port
+

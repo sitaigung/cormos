@@ -1,0 +1,110 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: ml-pipeline-
+  namespace: argo
+spec:
+  entrypoint: ml-pipeline
+  volumeClaimTemplates:
+  - metadata:
+      name: shared-data
+    spec:
+      accessModes: ["ReadWriteMany"]  # Allow multiple nodes to read/write
+      resources:
+        requests:
+          storage: 5Gi  # Size of the shared storage
+  templates:
+  - name: ml-pipeline
+    steps:
+    - - name: download-and-preprocess
+        template: download-and-preprocess
+
+    - - name: train-model
+        template: train-model
+
+    - - name: predict
+        template: predict
+
+  # Step 1: Download and preprocess data
+  - name: download-and-preprocess
+    container:
+      image: python:3.8
+      command: [python, -c]
+      args:
+        - |
+          import os
+          import urllib.request
+
+          # Download a sample dataset
+          url = "https://people.sc.fsu.edu/~jburkardt/data/csv/airtravel.csv"
+          download_path = "/mnt/shared/dataset.csv"
+          urllib.request.urlretrieve(url, download_path)
+
+          # Preprocess the dataset (keeping the first few lines as a sample)
+          with open(download_path, "r") as file:
+              data = file.readlines()
+
+          preprocessed_data_path = "/mnt/shared/preprocessed_dataset.csv"
+          with open(preprocessed_data_path, "w") as file:
+              file.writelines(data[:10])  # Keep the first 10 lines
+
+          print(f"Data preprocessed and saved to {preprocessed_data_path}")
+      volumeMounts:
+      - name: shared-data
+        mountPath: /mnt/shared
+
+  # Step 2: Train the ML model
+  - name: train-model
+    container:
+      image: python:3.8
+      command: [python, -c]
+      args:
+        - |
+          from sklearn.linear_model import LogisticRegression
+          import joblib
+          import pandas as pd
+
+          # Load preprocessed data from shared storage
+          preprocessed_data_path = "/mnt/shared/preprocessed_dataset.csv"
+          data = pd.read_csv(preprocessed_data_path)
+
+          # Simple dummy feature matrix and labels (based on air travel data)
+          X = data.iloc[:, 1:].values  # Use second column onwards as features
+          y = [0, 1] * int(len(X) / 2)  # Create dummy labels (0, 1, alternating)
+
+          # Train a basic Logistic Regression model
+          model = LogisticRegression()
+          model.fit(X, y)
+
+          # Save the model to shared storage
+          model_path = "/mnt/shared/model.pkl"
+          joblib.dump(model, model_path)
+          print(f"Model trained and saved to {model_path}")
+      volumeMounts:
+      - name: shared-data
+        mountPath: /mnt/shared
+
+  # Step 3: Perform a prediction using the trained model
+  - name: predict
+    container:
+      image: python:3.8
+      command: [python, -c]
+      args:
+        - |
+          import joblib
+          import pandas as pd
+
+          # Load the trained model from shared storage
+          model_path = "/mnt/shared/model.pkl"
+          model = joblib.load(model_path)
+
+          # Create dummy input data for prediction
+          input_data = pd.DataFrame([[100, 120, 150, 180]], columns=["Jan", "Feb", "Mar", "Apr"])
+
+          # Perform prediction
+          prediction = model.predict(input_data)
+          print(f"Prediction for input data {input_data.values} is: {prediction}")
+      volumeMounts:
+      - name: shared-data
+        mountPath: /mnt/shared
+
