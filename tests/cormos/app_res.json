@@ -1,0 +1,25 @@
+[
+    {
+        "Software Entity UID": "train-model",
+        "Total Energy Consumption": "INDIFFERENT",
+        "Total Execution Time": "LOW",
+        "Response Time": "INDIFFERENT",
+        "node type": "server",
+        "node CPU cores": ">16",
+        "node memory size": ">8",
+        "node persistent storage size": ">20",
+        "node network bandwidth upload": "INDIFFERENT"
+    },
+    {
+        "Software Entity UID": "run-inference",
+        "Total Energy Consumption": "INDIFFERENT",
+        "Total Execution Time": "INDIFFERENT",
+        "Response Time": "LOW",
+        "node type": "edge_device",
+        "node CPU cores": ">2",
+        "node memory size": ">2",
+        "node persistent storage size": ">1",
+        "node network bandwidth upload": "INDIFFERENT"
+    }
+]
+

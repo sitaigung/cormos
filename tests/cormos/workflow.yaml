@@ -1,0 +1,152 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: model-train-inference-
+  namespace: argo
+spec:
+  entrypoint: model-workflow
+  dnsConfig:
+    nameservers:
+      - 8.8.8.8
+    searches:
+      - argo.svc.cluster.local
+      - default.svc.cluster.local
+  templates:
+    - name: model-workflow
+      steps:
+        - - name: train-model
+            template: train-model
+
+        - - name: run-inference
+            template: run-inference
+            arguments:
+              artifacts:
+                - name: trained-model
+                  from: "{{steps.train-model.outputs.artifacts.trained-model}}"
+
+    # Train model and store the model artifact in MinIO
+    - name: train-model
+      inputs:
+        artifacts:
+          - name: training-data
+            path: /mnt/data/iris_train.csv
+            s3:
+              bucket: cormos
+              key: iris_train.csv
+              endpoint: 147.102.19.7:30439
+              insecure: true
+              accessKeySecret:
+                name: my-minio-cred
+                key: accesskey
+              secretKeySecret:
+                name: my-minio-cred
+                key: secretkey
+      container:
+        image: python:3.8
+        command: [sh, -c]
+        args:
+          - |
+            pip install scikit-learn pandas && \
+            python -c "
+            import pandas as pd
+            import pickle
+            from sklearn.model_selection import train_test_split
+            from sklearn.neural_network import MLPClassifier
+
+            # Read training data from /mnt/data (downloaded from MinIO)
+            data = pd.read_csv('/mnt/data/iris_train.csv')
+
+            X = data[['sepal_length', 'sepal_width', 'petal_length', 'petal_width']]
+            y = data['species']
+
+            X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+
+            model = MLPClassifier(hidden_layer_sizes=(10,), max_iter=500, random_state=42)
+            model.fit(X_train, y_train)
+
+            # Save trained model to /mnt/data (to be uploaded to MinIO)
+            with open('/mnt/data/trained_model.pkl', 'wb') as f:
+                pickle.dump(model, f)"
+      outputs:
+        artifacts:
+          - name: trained-model
+            path: /mnt/data/trained_model.pkl
+            s3:
+              bucket: cormos
+              key: trained_model.pkl
+              endpoint: 147.102.19.7:30439
+              insecure: true
+              accessKeySecret:
+                name: my-minio-cred
+                key: accesskey
+              secretKeySecret:
+                name: my-minio-cred
+                key: secretkey
+
+    # Run inference using the trained model from MinIO
+    - name: run-inference
+      inputs:
+        artifacts:
+          - name: trained-model
+            path: /mnt/data/trained_model.pkl
+            s3:
+              bucket: cormos
+              key: trained_model.pkl
+              endpoint: 147.102.19.7:30439
+              insecure: true
+              accessKeySecret:
+                name: my-minio-cred
+                key: accesskey
+              secretKeySecret:
+                name: my-minio-cred
+                key: secretkey
+          - name: test-data
+            path: /mnt/data/iris_test.csv
+            s3:
+              bucket: cormos
+              key: iris_test.csv
+              endpoint: 147.102.19.7:30439
+              insecure: true
+              accessKeySecret:
+                name: my-minio-cred
+                key: accesskey
+              secretKeySecret:
+                name: my-minio-cred
+                key: secretkey
+      container:
+        image: python:3.8
+        command: [sh, -c]
+        args:
+          - |
+            pip install scikit-learn pandas && \
+            python -c "
+            import pandas as pd
+            import pickle
+
+            # Load trained model from /mnt/data
+            with open('/mnt/data/trained_model.pkl', 'rb') as f:
+                model = pickle.load(f)
+
+            # Read test data from /mnt/data
+            test_data = pd.read_csv('/mnt/data/iris_test.csv')
+
+            X_test = test_data[['sepal_length', 'sepal_width', 'petal_length', 'petal_width']]
+            predictions = model.predict(X_test)
+
+            test_data['prediction'] = predictions
+            test_data.to_csv('/mnt/data/predictions.csv', index=False)"
+      outputs:
+        artifacts:
+          - name: predictions
+            path: /mnt/data/predictions.csv
+            s3:
+              bucket: cormos
+              key: predictions.csv
+              endpoint: 147.102.19.7:30439
+              insecure: true
+              accessKeySecret:
+                name: my-minio-cred
+                key: accesskey
+              secretKeySecret:
+                name: my-minio-cred
+                key: secretkey
